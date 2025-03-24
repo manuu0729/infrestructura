@@ -1,0 +1,60 @@
+[2:59 p.m., 20/3/2025] Ale👑: #!/bin/bash
+
+# Variables
+INSTANCE_TYPE="t2.medium"  # Tipo de instancia
+AMI_ID="ami-0abcdef1234567890"  # ID de la AMI (Amazon Machine Image)
+KEY_NAME="my-key-pair"  # Nombre del par de claves
+SECURITY_GROUP_ID="sg-0abcdef1234567890"  # ID del grupo de seguridad
+SUBNET_ID="subnet-0abcdef1234567890"  # ID de la subred
+VOLUME_SIZE=1000  # Tamaño del volumen en GB (1 TB = 1000 GB)
+
+# Crear la instancia EC2
+INSTANCE_ID=$(aws ec2 run-instances \
+    --image-id $AMI_ID \
+    --instance-type $INSTANCE_TYPE \
+    --key-name $KEY_NAME \
+    --security-group-ids $SECURITY_GROUP_ID \
+    --subnet-id $SUBNET_ID \
+    --block-device-mappings "[
+        {
+            \"DeviceName\": \"/dev/xvda\",
+            \"Ebs\": {
+                \"VolumeSize\": 8,
+                \"VolumeType\": \"gp2\"
+            }
+        }
+    ]" \
+    --query 'Instances[0].InstanceId' \
+    --output text)
+
+echo "Instancia EC2 creada con ID: $INSTANCE_ID"
+
+# Esperar a que la instancia esté en estado 'running'
+aws ec2 wait instance-running --instance-ids $INSTANCE_ID
+
+echo "Instancia EC2 en estado 'running'"
+[3:09 p.m., 20/3/2025] Ale👑: #!/bin/bash
+
+# Variables de configuración
+RESOURCE_GROUP="MiGrupoDeRecursos"
+LOCATION="eastus"  # Cambia a la región que prefieras
+VM_NAME="MiMaquinaVirtual"
+VM_SIZE="Standard_DS2_v2"  # Tamaño de la VM
+IMAGE="UbuntuLTS"  # Imagen de la VM (Ubuntu en este caso)
+ADMIN_USERNAME="azureuser"
+SSH_KEY_PATH="~/.ssh/id_rsa.pub"  # Ruta a tu clave pública SSH
+VNET_NAME="MiRedVirtual"
+SUBNET_NAME="MiSubred"
+NSG_NAME="MiGrupoSeguridad"
+DISK1_NAME="Disco1"
+DISK2_NAME="Disco2"
+DISK_SIZE=1023  # Tamaño del disco en GB (1 TB = 1023 GB)
+
+# Crear un grupo de recursos
+echo "Creando grupo de recursos..."
+az group create --name $RESOURCE_GROUP --location $LOCATION
+
+# Crear una red virtual y una subred
+echo "Creando red virtual y subred..."
+az network vnet create \
+    --resourc…
