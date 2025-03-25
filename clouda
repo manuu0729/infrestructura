@@ -1,0 +1,158 @@
+#!/bin/bash
+
+## CONFIGURACIÓN INICIAL
+echo "=============================================="
+echo "  Configuración de Máquina Virtual para eCommerce"
+echo "  Plataforma: WAMP + React Native + AWS E3"
+echo "=============================================="
+
+# Verificar si es usuario root
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Este script debe ejecutarse como root" >&2
+    exit 1
+fi
+
+## 1. CONFIGURACIÓN DE DISCOS
+echo "## Configurando discos de almacenamiento..."
+
+# Particionar y formatear los discos (asumiendo /dev/sdb y /dev/sdc)
+for disk in sdb sdc; do
+    echo "Procesando disco /dev/${disk}..."
+    
+    # Crear tabla de particiones GPT
+    parted /dev/${disk} mklabel gpt --script
+    
+    # Crear partición única que ocupe todo el disco
+    parted -a optimal /dev/${disk} mkpart primary 0% 100% --script
+    
+    # Formatear como ext4
+    mkfs.ext4 /dev/${disk}1
+    
+    # Configurar montaje automático
+    mkdir -p /mnt/disk${disk: -1}
+    echo "/dev/${disk}1 /mnt/disk${disk: -1} ext4 defaults 0 2" >> /etc/fstab
+done
+
+# Montar todos los discos
+mount -a
+
+## 2. INSTALACIÓN DE WAMP SERVER
+echo "## Instalando WAMP Server..."
+
+# Actualizar sistema
+apt-get update && apt-get upgrade -y
+
+# Instalar dependencias
+apt-get install -y apache2 mysql-server php libapache2-mod-php php-mysql php-curl php-gd php-mbstring php-xml php-zip
+
+# Configurar MySQL seguro
+mysql_secure_installation <<EOF
+n
+n
+y
+y
+y
+y
+EOF
+
+# Crear directorio para la aplicación
+mkdir -p /var/www/ecommerce
+chown -R www-data:www-data /var/www/ecommerce
+
+## 3. CONFIGURACIÓN DE REACT NATIVE
+echo "## Configurando entorno React Native..."
+
+# Instalar Node.js y npm
+curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
+apt-get install -y nodejs
+
+# Instalar React Native CLI
+npm install -g react-native-cli
+
+# Crear usuario para desarrollo
+useradd -m -s /bin/bash devuser
+usermod -aG sudo devuser
+echo "devuser:PasswordSeguro123!" | chpasswd
+
+## 4. CONFIGURACIÓN DE RED Y SEGURIDAD
+echo "## Configurando red y seguridad..."
+
+# Configurar firewall
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw allow 22/tcp
+ufw --force enable
+
+# Instalar fail2ban para protección contra ataques
+apt-get install -y fail2ban
+systemctl enable fail2ban
+systemctl start fail2ban
+
+## 5. PREPARACIÓN PARA AWS E3
+echo "## Preparando integración con AWS E3..."
+
+# Instalar AWS CLI
+apt-get install -y awscli
+
+# Configurar credenciales (se deben proporcionar manualmente)
+mkdir -p /home/devuser/.aws
+cat > /home/devuser/.aws/config <<EOL
+[default]
+region=us-east-1
+output=json
+EOL
+
+chown -R devuser:devuser /home/devuser/.aws
+
+# Instalar herramientas adicionales para E3
+apt-get install -y python3-pip
+pip3 install boto3
+
+## 6. OPTIMIZACIÓN DEL SISTEMA
+echo "## Optimizando sistema..."
+
+# Configurar swap
+fallocate -l 4G /swapfile
+chmod 600 /swapfile
+mkswap /swapfile
+swapon /swapfile
+echo "/swapfile none swap sw 0 0" >> /etc/fstab
+
+# Ajustar parámetros del kernel
+echo "vm.swappiness=10" >> /etc/sysctl.conf
+echo "vm.vfs_cache_pressure=50" >> /etc/sysctl.conf
+sysctl -p
+
+## 7. CONFIGURACIÓN FINAL
+echo "## Realizando configuración final..."
+
+# Habilitar servicios
+systemctl enable apache2
+systemctl enable mysql
+
+# Reiniciar servicios
+systemctl restart apache2
+systemctl restart mysql
+
+# Mostrar resumen de configuración
+echo ""
+echo "=============================================="
+echo "  CONFIGURACIÓN COMPLETA"
+echo "=============================================="
+echo "Discos configurados:"
+df -h | grep /mnt/disk
+echo ""
+echo "Servicios instalados:"
+echo " - Apache: $(systemctl is-active apache2)"
+echo " - MySQL: $(systemctl is-active mysql)"
+echo " - Node.js: $(node --version)"
+echo ""
+echo "Credenciales importantes:"
+echo " - Usuario devuser: PasswordSeguro123!"
+echo " - MySQL root: (configurado durante la instalación)"
+echo ""
+echo "Próximos pasos:"
+echo "1. Configurar credenciales AWS en /home/devuser/.aws/credentials"
+echo "2. Desplegar aplicación en /var/www/ecommerce"
+echo "3. Configurar virtual host en Apache"
+echo "=============================================="
